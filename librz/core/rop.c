@@ -573,7 +573,7 @@ RZ_API RZ_OWN RzPVector /*<RzRopRegInfo *>*/ *rz_core_rop_gadget_get_reg_info_by
 	RzRopRegInfo *reg_info;
 	rz_list_foreach (gadget_info->dependencies, iter, reg_info) {
 		if (rz_rop_event_functions[event](reg_info)) {
-			rz_pvector_push(matches, reg_info);
+			rz_pvector_push(matches, rz_core_rop_reg_info_dup(reg_info));
 		}
 	}
 	return matches;
@@ -1539,6 +1539,8 @@ static void set_increment_based_on_arch(const RzCore *core, const char *arch, in
 		*increment = rz_config_get_i(core->config, "asm.bits") == 16 ? 2 : 4;
 	} else if (RZ_STR_EQ(arch, "avr")) { // AVR is halfword aligned.
 		*increment = 2;
+	} else if (RZ_STR_EQ(arch, "riscv")) {
+		*increment = core->analysis->pcalign;
 	}
 }
 

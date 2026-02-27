@@ -785,6 +785,9 @@ typedef enum {
 	RZ_CORE_ANALYSIS_EXPERIMENTAL, ///< aaaa
 } RzCoreAnalysisType;
 
+RZ_DEPRECATE RZ_API bool rz_core_set_endianness(RZ_NONNULL RzCore *core, bool big_endian);
+RZ_DEPRECATE RZ_API bool rz_core_arch_configure(RZ_NONNULL RzCore *core, RZ_NULLABLE const char *arch, int bits, RZ_NULLABLE const char *cpu, RZ_NULLABLE const char *os, RZ_NULLABLE const char *platform);
+
 RZ_API RzAnalysisOp *rz_core_analysis_op(RzCore *core, ut64 addr, int mask);
 RZ_API void rz_core_analysis_fcn_merge(RzCore *core, ut64 addr, ut64 addr2);
 RZ_API const char *rz_core_analysis_optype_colorfor(RzCore *core, ut64 addr, bool verbose);
@@ -949,6 +952,7 @@ RZ_API bool rz_core_print_function_disasm_json(RzCore *core, RzAnalysisFunction 
 RZ_API int rz_core_flag_in_middle(RzCore *core, ut64 at, int oplen, int *midflags);
 RZ_API int rz_core_bb_starts_in_middle(RzCore *core, ut64 at, int oplen);
 RZ_API void rz_analysis_disasm_text_free(RzAnalysisDisasmText *t);
+RZ_API RZ_OWN char *rz_core_get_xref_comment(RZ_NONNULL RzCore *core, ut64 addr);
 
 /**
  * \brief Use RzAsmOp if it is sufficient
@@ -1001,9 +1005,9 @@ RZ_API void rz_core_sysenv_end(RzCore *core);
 
 RZ_API void rz_core_recover_vars(RzCore *core, RzAnalysisFunction *fcn, bool argonly);
 
-/* cmd_linux_heap_glibc.c */
+/* heap_glibc.c */
 RZ_API RzList /*<RzHeapChunkListItem *>*/ *rz_heap_chunks_list(RzCore *core, ut64 m_arena);
-RZ_API RzList /*<MallocState *>*/ *rz_heap_arenas_list(RzCore *core);
+RZ_API RzList /*<RzArenaListItem *>*/ *rz_heap_arenas_list(RzCore *core);
 RZ_API RzHeapChunkSimple *rz_heap_chunk(RzCore *core, ut64 addr);
 RZ_API RzHeapBin *rz_heap_bin_content(RzCore *core, MallocState *arena, int bin_num, ut64 m_arena);
 RZ_API RzHeapBin *rz_heap_fastbin_content(RzCore *core, MallocState *arena, int bin_num);

@@ -315,16 +315,26 @@ arch_isa_includes = [
   'isa',
 ]
 
-if capstone_dep.version() == 'next' or capstone_dep.version().split('.')[0].to_int() > 4
+if capstone_dep.version() == 'next' or capstone_dep.version().split('.')[0].to_int() > 6
   # plugins
   arch_plugins_list += [
     'riscv_cs',
-    'tricore_cs',
   ]
 
   # plugins sources
   arch_plugin_sources += [
     'p/arch_riscv_cs.c',
+  ]
+endif
+
+if capstone_dep.version() == 'next' or capstone_dep.version().split('.')[0].to_int() > 4
+  # plugins
+  arch_plugins_list += [
+    'tricore_cs',
+  ]
+
+  # plugins sources
+  arch_plugin_sources += [
     'p/arch_tricore_cs.c',
   ]
 
@@ -338,6 +348,7 @@ if capstone_dep.version() == 'next'
   # plugins
   arch_plugins_list += [
     'alpha_cs',
+    'hppa_cs',
     'loongarch_cs',
     'xtensa_cs',
   ]
@@ -346,6 +357,7 @@ if capstone_dep.version() == 'next'
   arch_plugin_sources += [
     'p/arch_alpha.c',
     'p/arch_loongarch_cs.c',
+    'p/arch_hppa_cs.c',
     'p/arch_xtensa_cs.c',
   ]
 
@@ -362,9 +374,7 @@ if get_option('use_gpl')
   arch_plugins_list += [
     'arc_gnu',
     'cris_gnu',
-    'hppa_gnu',
     'lanai_gnu',
-    'riscv_gnu',
     'vax_gnu',
     'z80_gnu',
   ]
@@ -373,9 +383,7 @@ if get_option('use_gpl')
   arch_plugin_sources += [
     'p_gnu/arch_arc.c',
     'p_gnu/arch_cris.c',
-    'p_gnu/arch_hppa.c',
     'p_gnu/arch_lanai.c',
-    'p_gnu/arch_riscv.c',
     'p_gnu/arch_vax.c',
     'p_gnu/arch_z80.c',
   ]
@@ -388,12 +396,8 @@ if get_option('use_gpl')
     'isa_gnu/arc/arcompact-dis.c',
     'isa_gnu/cris/cris-dis.c',
     'isa_gnu/cris/cris-opc.c',
-    'isa_gnu/hppa/hppa-dis.c',
     'isa_gnu/lanai/lanai-dis.c',
     'isa_gnu/lanai/lanai-opc.c',
-    # 'isa_gnu/riscv/riscv-opc.c',
-    # 'isa_gnu/riscv/riscv.c',
-    'isa_gnu/sparc/sparc-opc.c',
     'isa_gnu/vax/vax-dis.c',
     # 'isa_gnu/z80/expressions.c',
     # 'isa_gnu/z80/z80.c',

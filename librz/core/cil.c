@@ -568,6 +568,10 @@ static void rzil_print_register_float(RzFloat *number, ILPrint *p) {
 	free(hex);
 }
 
+static int compare_strings(const RzILVar *v1, const RzILVar *v2, RZ_UNUSED void *user) {
+	return strcmp(v1->name, v2->name);
+}
+
 RZ_IPI void rz_core_analysis_il_vm_status(RzCore *core, const char *var_name, RzOutputMode mode) {
 	RzAnalysisILVM *vm = core->analysis->il_vm;
 	if (!vm) {
@@ -600,6 +604,7 @@ RZ_IPI void rz_core_analysis_il_vm_status(RzCore *core, const char *var_name, Rz
 	}
 
 	RzPVector *global_vars = rz_il_vm_get_all_vars(vm->vm, RZ_IL_VAR_KIND_GLOBAL);
+	rz_pvector_sort(global_vars, (RzPVectorComparator)compare_strings, NULL);
 	if (global_vars) {
 		void **it;
 		rz_pvector_foreach (global_vars, it) {
@@ -1255,7 +1260,7 @@ static inline bool get_next_i(IterCtx *ctx, size_t *next_i) {
 						}
 					}
 					if (!bbit && cop_it) {
-						RzAnalysisCaseOp *cop = rz_list_iter_get_data(cop_it);
+						RzAnalysisCaseOp *cop = rz_list_val(cop_it);
 						if (cop->jump == prev_bb->addr && rz_list_has_next(cop_it)) {
 							cop = rz_list_iter_get_next_data(cop_it);
 							rz_list_pop(ctx->switch_path);
@@ -1276,7 +1281,7 @@ static inline bool get_next_i(IterCtx *ctx, size_t *next_i) {
 				rz_list_free(ctx->bbl);
 				return false;
 			}
-			ctx->cur_bb = rz_list_iter_get_data(bbit);
+			ctx->cur_bb = rz_list_val(bbit);
 			rz_list_push(ctx->path, ctx->cur_bb);
 			rz_list_delete(ctx->bbl, bbit);
 			*next_i = ctx->cur_bb->addr - ctx->start_addr;

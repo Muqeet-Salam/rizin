@@ -52,7 +52,7 @@ dmxa~?narenas
 echo ----
 dmxb~regsize : 0x800
 echo ----
-dmxc *~?Chunk
+dmxc~?Chunk
 EOF
 EXPECT=<<EOF
 1
@@ -74,7 +74,7 @@ dmxa~?narenas
 echo ----
 dmxb~regsize : 0x800
 echo ----
-dmxc *~?Chunk
+dmxc~?Chunk
 EOF
 EXPECT=<<EOF
 1

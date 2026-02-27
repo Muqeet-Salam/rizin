@@ -317,7 +317,7 @@ RZ_IPI int rz_line_hist_sdb_up(RzLine *line) {
 		return false;
 	}
 	line->sdbshell_hist_iter = rz_list_next(line->sdbshell_hist_iter);
-	strncpy(line->buffer.data, rz_list_iter_get_data(line->sdbshell_hist_iter), RZ_LINE_BUFSIZE - 1);
+	strncpy(line->buffer.data, rz_list_val(line->sdbshell_hist_iter), RZ_LINE_BUFSIZE - 1);
 	line->buffer.index = line->buffer.length = strlen(line->buffer.data);
 	return true;
 }
@@ -328,7 +328,7 @@ RZ_IPI int rz_line_hist_sdb_down(RzLine *line) {
 		return false;
 	}
 	line->sdbshell_hist_iter = rz_list_prev(line->sdbshell_hist_iter);
-	strncpy(line->buffer.data, rz_list_iter_get_data(line->sdbshell_hist_iter), RZ_LINE_BUFSIZE - 1);
+	strncpy(line->buffer.data, rz_list_val(line->sdbshell_hist_iter), RZ_LINE_BUFSIZE - 1);
 	line->buffer.index = line->buffer.length = strlen(line->buffer.data);
 	return true;
 }
@@ -1562,15 +1562,19 @@ DEFINE_HANDLE_TS_FCN_AND_SYMBOL(tmp_arch_op) {
 	bool is_arch_set = false, is_bits_set = false;
 	bool oldfixedarch = core->fixedarch, oldfixedbits = core->fixedbits;
 	int cmd_ignbithints = -1;
+	int bits = -1;
 
 	// change arch and bits
 	char *q = strchr(arg_str, ':');
 	if (q) {
 		*q++ = '\0';
-		int bits = rz_num_math(core->num, q);
-		is_bits_set = set_tmp_bits(core, bits, &tmpbits, &cmd_ignbithints);
+		bits = rz_num_math(core->num, q);
 	}
 	is_arch_set = set_tmp_arch(core, arg_str, &tmparch);
+
+	if (bits > 0) {
+		is_bits_set = set_tmp_bits(core, bits, &tmpbits, &cmd_ignbithints);
+	}
 
 	// execute command or next tmp op with changed settings
 	TSNode next = tmp_get_next_node(node);
@@ -1847,7 +1851,7 @@ DEFINE_HANDLE_TS_FCN_AND_SYMBOL(tmp_value_op) {
 
 	ut64 v = rz_num_math(core->num, arg_str);
 	ut8 buf[8] = { 0 };
-	int be = rz_config_get_i(core->config, "cfg.bigendian");
+	int be = rz_config_get_b(core->config, "cfg.bigendian");
 	int bi = rz_config_get_i(core->config, "asm.bits");
 
 	rz_write_ble(buf, v, be, bi);

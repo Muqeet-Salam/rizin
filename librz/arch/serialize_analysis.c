@@ -1141,7 +1141,7 @@ static void function_store(RZ_NONNULL Sdb *db, const char *key, RzAnalysisFuncti
 		pj_end(j);
 	}
 
-	if (function->labels->count) {
+	if (ht_up_size(function->labels)) {
 		pj_ko(j, "labels");
 		ht_up_foreach(function->labels, store_label_cb, j);
 		pj_end(j);
@@ -1396,6 +1396,7 @@ beach:
 	rz_key_parser_free(ctx.parser);
 	rz_serialize_analysis_var_parser_free(ctx.var_parser);
 	rz_key_parser_free(ctx.storage_parser);
+	rz_key_parser_free(ctx.piece_parser);
 	return ret;
 }
 

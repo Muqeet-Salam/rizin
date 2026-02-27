@@ -44,7 +44,7 @@ cc = meson.get_compiler('c')
 cc_native = meson.get_compiler('c', native: true)
 
 platform_deps = []
-platform_inc = ['.', 'librz', 'librz/include']
+platform_inc = ['.', 'librz', 'librz/include', 'subprojects/rzheap']
 if host_machine.system() == 'windows'
   add_project_arguments('-DPSAPI_VERSION=1', language: 'c')
   platform_deps = [
@@ -213,7 +213,7 @@ endif
 
 # Handle PCRE2
 cpu_jit_supported = [ 'aarch64', 'arm', 'mips', 'mips64', 'ppc', 'ppc64', 'riscv32', 'riscv64', 's390x', 'x86', 'x86_64' ]
-pcre2_jit_supported = target_machine.cpu_family() in cpu_jit_supported and cc.get_id() != 'tcc' and target_machine.system() != 'darwin'
+pcre2_jit_supported = target_machine.cpu_family() in cpu_jit_supported and cc.get_id() != 'tcc' and target_machine.system() not in ['darwin', 'serenity']
 if pcre2_jit_supported
   add_project_arguments(['-DSUPPORTS_PCRE2_JIT'], language: 'c')
 endif
@@ -312,11 +312,6 @@ libdemangle_options = [
   'default_library=static',
   'use_swift_demangler=false',
 ]
-if get_option('use_gpl')
-  libdemangle_options += 'use_gpl=true'
-else
-  libdemangle_options += 'use_gpl=false'
-endif
 
 libdemangle_proj = subproject('libdemangle', default_options: libdemangle_options)
 libdemangle_dep = libdemangle_proj.get_variable('libdemangle_dep')
@@ -399,7 +394,7 @@ foreach it : ccs
   if not it_cc.has_function('clock_gettime', prefix: '#include <time.h>') and it_cc.has_header_symbol('features.h', '__GLIBC__')
     it_lrt = it_cc.find_library('rt', required: true, static: is_static_build)
   endif
-  have_lrt = not ['windows', 'darwin', 'openbsd', 'android', 'haiku'].contains(it_machine.system())
+  have_lrt = not ['windows', 'darwin', 'openbsd', 'android', 'haiku', 'serenity'].contains(it_machine.system())
   if have_lrt and not it_lrt.found()
     it_lrt = it_cc.find_library('rt', required: true, static: is_static_build)
   endif
@@ -427,7 +422,6 @@ foreach it : ccs
   it_userconf.set('INCLUDEDIR', rizin_incdir)
   it_userconf.set('DATADIR_RZ', rizin_datdir_rz)
   is_ppc = it_machine.cpu_family() == 'ppc' or it_machine.cpu_family() == 'ppc64'
-  it_userconf.set10('HAVE_JEMALLOC', it_machine.system() != 'windows' and (it_machine.system() != 'darwin' or not is_ppc))
   it_userconf.set('DATADIR', rizin_datdir)
   it_userconf.set('WWWROOT', rizin_wwwroot)
   it_userconf.set('SDB', rizin_sdb)
@@ -680,6 +674,13 @@ if not libzip_dep.found()
   libzip_dep = libzip_proj.get_variable('libzip_dep')
 endif
 
+if host_machine.system() == 'serenity' and libzip_dep.found()
+  zlib_dep = dependency('zlib', required: true, static: is_static_build)
+  libzip_dep = declare_dependency(
+    dependencies: [libzip_dep, zlib_dep]
+  )
+endif
+
 # handle zstd dependency
 r = run_command(py3_exe, check_meson_subproject_py, 'zstd', check: false)
 if r.returncode() == 1 and get_option('subprojects_check')
@@ -713,6 +714,10 @@ endif
 
 yxml_proj = subproject('yxml', default_options: ['default_library=static'])
 yxml_dep = yxml_proj.get_variable('yxml_dep')
+
+# handle rzheap dependency
+rzheap_proj = subproject('rzheap', default_options: ['default_library=static'])
+rzheap_dep = rzheap_proj.get_variable('rzheap_dep')
 
 use_rpath = false
 use_rpath_absolute = false
