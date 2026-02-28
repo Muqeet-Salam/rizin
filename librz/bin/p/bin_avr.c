@@ -129,14 +129,45 @@ static char *avr_str_dup(const char *str) {
 }
 
 static char *rz_avr_legacy_device_name(const char *name) {
-	// Historically this function used to translate certain device
-	// names into family/group strings (eg. "ATmega8" -> "ATmega8/L").
-	// The integration database expects the original short names, however,
-	// so we simply return a copy of the provided name verbatim.  Any
-	// canonicalisation should happen upstream (detection or SVD loader).
 	if (!name) {
 		return NULL;
 	}
+
+	if (!strcasecmp(name, "ATmega8")) {
+		return avr_str_dup("ATmega8/L");
+	}
+
+	if (!strcasecmp(name, "ATmega640") || !strcasecmp(name, "ATmega1280") ||
+		!strcasecmp(name, "ATmega1281") || !strcasecmp(name, "ATmega2560") ||
+		!strcasecmp(name, "ATmega2561")) {
+		return avr_str_dup("ATmega640/1280/1281/2560/2561");
+	}
+
+	if (!strcasecmp(name, "ATmega16U4") || !strcasecmp(name, "ATmega32U4")) {
+		return avr_str_dup("ATmega16u4/32u4");
+	}
+
+	if (!strcasecmp(name, "ATxmega128A4U") || !strcasecmp(name, "ATxmega64A4U") ||
+		!strcasecmp(name, "ATxmega32A4U") || !strcasecmp(name, "ATxmega16A4U")) {
+		return avr_str_dup("ATxmega128/64/32/16a4u");
+	}
+
+	if (!strcasecmp(name, "ATmega88") || !strcasecmp(name, "ATmega168")) {
+		return avr_str_dup("ATmega88/168");
+	}
+
+	if (!strcasecmp(name, "ATmega48") || !strcasecmp(name, "ATmega48V")) {
+		return avr_str_dup("ATmega48/V/88/V/168/V");
+	}
+
+	if (!strcasecmp(name, "ATTiny48") || !strcasecmp(name, "ATTiny88")) {
+		return avr_str_dup("ATTiny48/88");
+	}
+
+	if (!strcasecmp(name, "ATmega328P")) {
+		return avr_str_dup("ATmega328p");
+	}
+
 	return avr_str_dup(name);
 }
 
