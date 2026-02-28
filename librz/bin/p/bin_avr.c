@@ -3,7 +3,9 @@
 
 #include <rz_bin.h>
 #include <rz_lib.h>
+#ifdef HAVE_RZ_SVD
 #include <rz_svd.h>
+#endif
 #include <string.h>
 #include <ctype.h>
 #include <stdlib.h>
@@ -78,6 +80,7 @@
  */
 
 // AVR SVD loader structures and helpers
+#ifdef HAVE_RZ_SVD
 typedef struct {
 	char *device_name;
 	ut32 flash_size;
@@ -96,22 +99,27 @@ typedef struct {
 
 #define RZ_AVR_SOURCE_HARDCODED 0
 #define RZ_AVR_SOURCE_SVD       1
+#endif
 
 // Helper functions for AVR SVD loader
 static char *avr_str_dup(const char *str);
 static char *rz_avr_legacy_device_name(const char *name);
 static char *rz_avr_detect_device_name(RzBinFile *bf);
+#ifdef HAVE_RZ_SVD
 static RzAvrSvdDevice *rz_avr_svd_create_dummy_device(const char *name);
 static RzAvrSvdDevice *rz_avr_svd_extract_device(void *svd_ctx, const char *device_name, ut8 pc_width);
 static RzAvrSvdLoader *rz_avr_svd_detect_and_load(RzBinFile *bf, ut8 pc_width);
 static void rz_avr_svd_loader_free(RzAvrSvdLoader *loader);
 static const char *rz_avr_svd_get_interrupt_name(const RzAvrSvdLoader *loader, ut64 index);
 static const char *rz_avr_svd_get_device_name(const RzAvrSvdLoader *loader);
+#endif
 
 typedef struct bin_avr_rom {
 	ut64 n_bytes; ///< detected size of each interrupt vector
 	ut64 bad_interrupt; ///< offset of the rom __bad_interrupt symbol
+#ifdef HAVE_RZ_SVD
 	RzAvrSvdLoader *svd_loader; ///< AVR device SVD data loader
+#endif
 	RzVector /*<ut64>*/ *interrupt_handlers; ///< Parsed interrupt handlers addresses
 } BinAvrRom;
 
@@ -169,6 +177,22 @@ static char *rz_avr_legacy_device_name(const char *name) {
 	}
 
 	return avr_str_dup(name);
+}
+
+static char *rz_avr_cpu_name(const char *name) {
+	if (!name) {
+		return NULL;
+	}
+	char *cpu = avr_str_dup(name);
+	if (!cpu) {
+		return NULL;
+	}
+	// Normalize: lowercase terminal 'P' after digit (e.g. ATmega328P -> ATmega328p)
+	size_t len = strlen(cpu);
+	if (len > 1 && cpu[len - 1] == 'P' && isdigit((unsigned char)cpu[len - 2])) {
+		cpu[len - 1] = 'p';
+	}
+	return cpu;
 }
 
 /**
@@ -250,6 +274,7 @@ static char *rz_avr_detect_device_name(RzBinFile *bf) {
 	return device_name;
 }
 
+#ifdef HAVE_RZ_SVD
 /**
  * Create a minimal device struct from hardcoded data
  * Used as fallback when SVD is not available
@@ -259,8 +284,7 @@ static RzAvrSvdDevice *rz_avr_svd_create_dummy_device(const char *name) {
 	if (!dev) {
 		return NULL;
 	}
-
-	dev->device_name = rz_avr_legacy_device_name(name ? name : "AVR-Unknown");
+	dev->device_name = avr_str_dup(name ? name : "AVR-Unknown");
 	dev->interrupt_map = ht_up_new(NULL, NULL);
 
 	if (!dev->device_name || !dev->interrupt_map) {
@@ -284,7 +308,51 @@ static RzAvrSvdDevice *rz_avr_svd_extract_device(
 		return NULL;
 	}
 
-	char *svd_file = rz_svd_find_file(device_name);
+	char *svd_file = NULL;
+
+	// Try various search paths for SVD files
+	// 1. Check RZ_SVD_DIR environment variable
+	const char *svd_dir = getenv("RZ_SVD_DIR");
+	if (svd_dir) {
+		svd_file = rz_svd_find_file(svd_dir, device_name);
+	}
+
+	// 2. Check source directory (for development/testing)
+#ifdef RZ_SVD_SRCDIR
+	if (!svd_file) {
+		svd_file = rz_svd_find_file(RZ_SVD_SRCDIR, device_name);
+	}
+#endif
+
+	// 3. Check user home directory
+	if (!svd_file) {
+		const char *home = getenv("HOME");
+		if (home) {
+			char *home_svd_dir = rz_str_newf(RZ_JOIN_5_PATHS("%s", "%s", "%s", "%s", "%s"), 
+				home, ".local", "share", "rizin", "svd");
+			if (home_svd_dir) {
+				svd_file = rz_svd_find_file(home_svd_dir, device_name);
+				free(home_svd_dir);
+			}
+		}
+	}
+
+	// 4. Check compile-time defined data directory
+#ifdef RZ_SVD_DATADIR
+	if (!svd_file) {
+		svd_file = rz_svd_find_file(RZ_SVD_DATADIR, device_name);
+	}
+#endif
+
+	// 5. Check standard system paths
+	if (!svd_file) {
+		svd_file = rz_svd_find_file("/usr/share/rizin/svd", device_name);
+	}
+
+	if (!svd_file) {
+		svd_file = rz_svd_find_file("/usr/local/share/rizin/svd", device_name);
+	}
+
 	if (!svd_file) {
 		RZ_LOG_DEBUG("avr: No SVD file found for device %s\n", device_name);
 		return NULL;
@@ -311,7 +379,7 @@ static RzAvrSvdDevice *rz_avr_svd_extract_device(
 		return NULL;
 	}
 
-	dev->device_name = rz_avr_legacy_device_name(svd_dev->name ? svd_dev->name : device_name);
+	dev->device_name = avr_str_dup(svd_dev->name ? svd_dev->name : device_name);
 	dev->pc_width = pc_width;
 	dev->interrupt_map = ht_up_new(NULL, free);
 
@@ -411,6 +479,7 @@ static const char *rz_avr_svd_get_device_name(const RzAvrSvdLoader *loader) {
 	}
 	return loader->device->device_name;
 }
+#endif /* HAVE_RZ_SVD */
 
 static bool read_opcode32_at(RzBuffer *b, ut64 addr, ut16 opcode[2]) {
 	return rz_buf_read_ble16_at(b, addr, &opcode[0], false) &&
@@ -613,20 +682,18 @@ static bool avr_load_buffer(RzBinFile *bf, RzBinObject *obj, RzBuffer *buf, Sdb 
 
 	avr_parse_interrupt_vectors(buf, interrupt_handlers, n_bytes, &bad_interrupt);
 
-	// Try to load SVD data based on the filename (will use pc_width from n_bytes)
-	RzAvrSvdLoader *svd_loader = rz_avr_svd_detect_and_load(bf, (ut8)n_bytes);
-
 	BinAvrRom *rom = RZ_NEW0(BinAvrRom);
 	if (!rom) {
 		rz_vector_free(interrupt_handlers);
-		rz_avr_svd_loader_free(svd_loader);
 		return false;
 	}
 
 	rom->n_bytes = n_bytes;
 	rom->bad_interrupt = bad_interrupt;
-	rom->svd_loader = svd_loader;
 	rom->interrupt_handlers = interrupt_handlers;
+#ifdef HAVE_RZ_SVD
+	rom->svd_loader = rz_avr_svd_detect_and_load(bf, (ut8)n_bytes);
+#endif
 	obj->bin_obj = rom;
 	return true;
 }
@@ -637,7 +704,9 @@ static void avr_destroy(RzBinFile *bf) {
 		return;
 	}
 	rz_vector_free(rom->interrupt_handlers);
+#ifdef HAVE_RZ_SVD
 	rz_avr_svd_loader_free(rom->svd_loader);
+#endif
 	free(rom);
 }
 
@@ -651,15 +720,20 @@ static RzBinInfo *avr_info(RzBinFile *bf) {
 		return NULL;
 	}
 
-	const char *device_name = rz_avr_svd_get_device_name(rom->svd_loader);
+	const char *device_name = NULL;
+#ifdef HAVE_RZ_SVD
+	device_name = rz_avr_svd_get_device_name(rom->svd_loader);
+#endif
 
 	bi->file = rz_str_dup(bf->file);
 	bi->type = rz_str_dup("ROM");
-	bi->machine = rz_str_dup(device_name ? device_name : "ATmel (unknown)");
+	// machine field uses grouped family names
+	bi->machine = rz_avr_legacy_device_name(device_name ? device_name : "ATmel (unknown)");
 	bi->os = rz_str_dup("avr usermode");
 	bi->has_va = false;
 	bi->arch = rz_str_dup("avr");
-	bi->cpu = rz_str_dup(device_name ? device_name : "ATmega8");
+	// cpu field uses normalized individual device name (lowercase 'p')
+	bi->cpu = rz_avr_cpu_name(device_name ? device_name : "ATmega8");
 	bi->bits = 8;
 	return bi;
 }
@@ -774,7 +848,10 @@ static RzPVector /*<RzBinSymbol *>*/ *avr_symbols(RzBinFile *bf) {
 			handler_name = "RESET";
 		} else {
 			// Try to get interrupt name from SVD data
+			handler_name = NULL;
+#ifdef HAVE_RZ_SVD
 			handler_name = rz_avr_svd_get_interrupt_name(rom->svd_loader, i);
+#endif
 			if (!handler_name) {
 				// if missing name, generate generic name
 				ut64 id = vector_addr >> 1;
@@ -817,12 +894,20 @@ static RzBinAddr *avr_binsym(RzBinFile *bf, RzBinSpecialSymbol sym) {
 }
 
 static void avr_structure_add_board_info(RzStructuredData *avr, const BinAvrRom *rom) {
-	const char *device_name = rz_avr_svd_get_device_name(rom->svd_loader);
+	const char *device_name = NULL;
+#ifdef HAVE_RZ_SVD
+	device_name = rz_avr_svd_get_device_name(rom->svd_loader);
+#endif
 	if (!device_name) {
 		return;
 	}
-	rz_structured_data_map_add_string(avr, "board", device_name);
-	rz_structured_data_map_add_string(avr, "cpu", device_name);
+	// Both board and cpu use normalized names (lowercase 'p')
+	char *board = rz_avr_cpu_name(device_name);
+	char *cpu = rz_avr_cpu_name(device_name);
+	rz_structured_data_map_add_string(avr, "board", board ? board : device_name);
+	rz_structured_data_map_add_string(avr, "cpu", cpu ? cpu : device_name);
+	free(board);
+	free(cpu);
 }
 
 static void avr_structure_add_reset_vector(RzStructuredData *avr, const BinAvrRom *rom) {
