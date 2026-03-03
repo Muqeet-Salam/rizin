@@ -450,9 +450,9 @@ static RzAvrSvdDevice *rz_avr_svd_extract_device(
 	}
 
 	if (svd_dev->interrupts) {
-		RzListIter *iter;
+		SvdListNode *iter;
 		RzSvdInterrupt *svd_int;
-		rz_list_foreach (svd_dev->interrupts, iter, svd_int) {
+		svd_list_foreach (svd_dev->interrupts, iter, svd_int) {
 			if (svd_int && svd_int->name) {
 				char *name_copy = avr_str_dup(svd_int->name);
 				if (name_copy) {
