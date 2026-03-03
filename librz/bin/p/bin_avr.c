@@ -386,7 +386,7 @@ static RzAvrSvdDevice *rz_avr_svd_extract_device(
 	if (!svd_file) {
 		const char *home = getenv("HOME");
 		if (home) {
-			char *home_svd_dir = rz_str_newf(RZ_JOIN_5_PATHS("%s", "%s", "%s", "%s", "%s"), 
+			char *home_svd_dir = rz_str_newf(RZ_JOIN_5_PATHS("%s", "%s", "%s", "%s", "%s"),
 				home, ".local", "share", "rizin", "svd");
 			if (home_svd_dir) {
 				svd_file = rz_svd_find_file(home_svd_dir, device_name);
@@ -452,7 +452,7 @@ static RzAvrSvdDevice *rz_avr_svd_extract_device(
 	if (svd_dev->interrupts) {
 		SvdListNode *iter;
 		RzSvdInterrupt *svd_int;
-		svd_list_foreach (svd_dev->interrupts, iter, svd_int) {
+		svd_list_foreach(svd_dev->interrupts, iter, svd_int) {
 			if (svd_int && svd_int->name) {
 				char *name_copy = avr_str_dup(svd_int->name);
 				if (name_copy) {
