@@ -1,6 +1,5 @@
 [wrap-git]
-url = https://github.com/Muqeet-Salam/rz-svd
-revision = dependency
+url = https://github.com/rizinorg/rz-svd
+revision = ef213d4b0ad315ae35c8ac6a1a2c83ce7d7e5ae8
 directory = rz-svd
-
 depth = 1
