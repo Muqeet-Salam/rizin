@@ -20,7 +20,7 @@ tree_sitter_inc = [include_directories('lib/src'), include_directories('lib/incl
 libtree_sitter = library('tree_sitter', tree_sitter_files,
   include_directories: tree_sitter_inc,
   implicit_include_directories: false,
-  install: not meson.is_subproject()
+  install: true
 )
 
 tree_sitter_dep = declare_dependency(
