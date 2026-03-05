@@ -52,6 +52,9 @@ RZ_API RzTypeDB *rz_type_db_new() {
 	return typedb;
 
 rz_type_db_new_fail:
+	if (typedb->parser) {
+		rz_type_parser_free(typedb->parser);
+	}
 	free((void *)typedb->target->default_type);
 	free(typedb->target);
 	ht_sp_free(typedb->types);

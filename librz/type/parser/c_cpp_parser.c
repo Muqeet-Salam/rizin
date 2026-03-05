@@ -32,22 +32,60 @@ TSLanguage *tree_sitter_c();
 
 CParserState *c_parser_state_new(HtSP *base_types, HtSP *callable_types) {
 	CParserState *state = RZ_NEW0(CParserState);
+	if (!state) {
+		return NULL;
+	}
 	if (!base_types) {
 		state->types = ht_sp_new(HT_STR_DUP, NULL, NULL);
+		if (!state->types) {
+			free(state);
+			return NULL;
+		}
 	} else {
 		state->types = base_types;
 	}
 	if (!callable_types) {
 		state->callables = ht_sp_new(HT_STR_DUP, NULL, NULL);
+		if (!state->callables) {
+			if (!base_types) {
+				ht_sp_free(state->types);
+			}
+			free(state);
+			return NULL;
+		}
 	} else {
 		state->callables = callable_types;
 	}
 	// Forward definitions require to have a special hashtable
 	state->forward = ht_sp_new(HT_STR_DUP, NULL, NULL);
+	if (!state->forward) {
+		if (!base_types) {
+			ht_sp_free(state->types);
+		}
+		if (!callable_types) {
+			ht_sp_free(state->callables);
+		}
+		free(state);
+		return NULL;
+	}
 	// Initializing error/warning/debug messages buffers
 	state->errors = rz_strbuf_new("");
 	state->warnings = rz_strbuf_new("");
 	state->debug = rz_strbuf_new("");
+	if (!state->errors || !state->warnings || !state->debug) {
+		rz_strbuf_free(state->errors);
+		rz_strbuf_free(state->warnings);
+		rz_strbuf_free(state->debug);
+		ht_sp_free(state->forward);
+		if (!base_types) {
+			ht_sp_free(state->types);
+		}
+		if (!callable_types) {
+			ht_sp_free(state->callables);
+		}
+		free(state);
+		return NULL;
+	}
 	state->verbose = false;
 	return state;
 }
@@ -85,6 +123,7 @@ void c_parser_state_reset_keep_ht(CParserState *state) {
 
 struct rz_type_parser_t {
 	CParserState *state;
+	bool owns_ht; // true if parser owns the hash tables and should free them
 };
 
 /**
@@ -99,6 +138,11 @@ RZ_API RZ_OWN RzTypeParser *rz_type_parser_new() {
 		return NULL;
 	}
 	parser->state = c_parser_state_new(NULL, NULL);
+	if (!parser->state) {
+		free(parser);
+		return NULL;
+	}
+	parser->owns_ht = true; // Parser owns the hash tables it created
 	return parser;
 }
 
@@ -118,15 +162,27 @@ RZ_API RZ_OWN RzTypeParser *rz_type_parser_init(HtSP *types, HtSP *callables) {
 		return NULL;
 	}
 	parser->state = c_parser_state_new(types, callables);
+	if (!parser->state) {
+		free(parser);
+		return NULL;
+	}
+	parser->owns_ht = false; // Parser uses external hash tables
 	return parser;
 }
 
 /**
- * \brief Frees the instance of the C type parser without destroying hashtables
+ * \brief Frees the instance of the C type parser
+ *
+ * If the parser owns its hash tables (created via rz_type_parser_new),
+ * they will be freed. If it uses external hash tables (created via
+ * rz_type_parser_init), only the parser state is freed.
  */
 RZ_API void rz_type_parser_free(RZ_NONNULL RzTypeParser *parser) {
-	// We do not destroy HT by default since it might be used after
-	c_parser_state_free_keep_ht(parser->state);
+	if (parser->owns_ht) {
+		c_parser_state_free(parser->state);
+	} else {
+		c_parser_state_free_keep_ht(parser->state);
+	}
 	free(parser);
 }
 
@@ -298,7 +354,7 @@ RZ_API int rz_type_parse_string(RzTypeDB *typedb, const char *code, char **error
  */
 RZ_API void rz_type_parse_reset(RzTypeDB *typedb) {
 	rz_type_parser_free(typedb->parser);
-	typedb->parser = rz_type_parser_new();
+	typedb->parser = rz_type_parser_init(typedb->types, typedb->callables);
 }
 
 /**
