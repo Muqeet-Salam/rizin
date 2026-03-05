@@ -6,10 +6,6 @@
 #ifdef HAVE_RZ_SVD
 #include <rz_svd.h>
 #endif
-#include <string.h>
-#include <ctype.h>
-#include <stdlib.h>
-#include <rz_util/rz_file.h>
 
 /** \file bin_avr.c
  * This plugin detects the usermode rom in AVR binaries.
@@ -94,11 +90,7 @@ typedef struct {
 typedef struct {
 	void *svd_ctx;
 	RzAvrSvdDevice *device;
-	ut32 source;
 } RzAvrSvdLoader;
-
-#define RZ_AVR_SOURCE_HARDCODED 0
-#define RZ_AVR_SOURCE_SVD       1
 #endif
 
 // Helper functions for AVR SVD loader
@@ -492,9 +484,6 @@ static RzAvrSvdLoader *rz_avr_svd_detect_and_load(RzBinFile *bf, ut8 pc_width) {
 			free(loader);
 			return NULL;
 		}
-		loader->source = RZ_AVR_SOURCE_HARDCODED;
-	} else {
-		loader->source = RZ_AVR_SOURCE_SVD;
 	}
 
 	loader->svd_ctx = NULL;
