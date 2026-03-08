@@ -1,5 +1,5 @@
 [wrap-git]
 url = https://github.com/rizinorg/rz-svd
-revision = ef213d4b0ad315ae35c8ac6a1a2c83ce7d7e5ae8
+revision = 876e6e1c6dd9615ac5ebefd8501beb7cdc7de2f0
 directory = rz-svd
 depth = 1
