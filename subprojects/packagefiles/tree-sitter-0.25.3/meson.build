@@ -17,10 +17,10 @@ tree_sitter_files = ['lib/src/lib.c']
 
 tree_sitter_inc = [include_directories('lib/src'), include_directories('lib/include')]
 
-libtree_sitter = library('tree_sitter', tree_sitter_files,
+libtree_sitter = static_library('tree_sitter', tree_sitter_files,
   include_directories: tree_sitter_inc,
   implicit_include_directories: false,
-  install: true
+  install: not meson.is_subproject()
 )
 
 tree_sitter_dep = declare_dependency(

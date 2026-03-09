@@ -146,6 +146,9 @@ if get_option('enable_tests')
   if test_env_common_path != []
     unit_test_env.prepend('PATH', test_env_common_path)
   endif
+  if get_option('b_sanitize').contains('address')
+    unit_test_env.set('ASAN_OPTIONS', 'detect_leaks=0,allocator_may_return_null=1,detect_odr_violation=0')
+  endif
 
   foreach test : tests
     exe = executable('test_@0@'.format(test), 'test_@0@.c'.format(test),
