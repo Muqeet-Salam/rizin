@@ -730,6 +730,10 @@ endif
 yxml_proj = subproject('yxml', default_options: ['default_library=static'])
 yxml_dep = yxml_proj.get_variable('yxml_dep')
 
+# handle rz-svd dependency
+rz_svd_proj = subproject('rz-svd')
+rz_svd_dep = rz_svd_proj.get_variable('rz_svd_dep')
+
 # handle rzheap dependency
 rzheap_proj = subproject('rzheap', default_options: ['default_library=static'])
 rzheap_dep = rzheap_proj.get_variable('rzheap_dep')

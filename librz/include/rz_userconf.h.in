@@ -94,6 +94,7 @@
 #define RZ_SDB_REG            RZ_JOIN_2_PATHS(RZ_SDB, "reg")
 #define RZ_SDB_MAGIC          RZ_JOIN_2_PATHS(RZ_SDB, "magic")
 #define RZ_SDB_FORMAT         RZ_JOIN_2_PATHS(RZ_SDB, "format")
+#define RZ_SVD                RZ_JOIN_2_PATHS(RZ_DATADIR, "svd")
 #define RZ_PDB                RZ_JOIN_2_PATHS(RZ_DATADIR, "pdb")
 #define RZ_PROJECTS           RZ_JOIN_2_PATHS(RZ_DATADIR, "projects")
 #define RZ_BINRC              RZ_JOIN_2_PATHS(RZ_DATADIR, "rc.d")
