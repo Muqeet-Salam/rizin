@@ -316,14 +316,7 @@ rz_bin_sources = [
 # Try to get the rz_svd dependency from the subproject
 rz_svd_proj = subproject('rz-svd', required: false)
 rz_bin_c_args = ['-DRZ_API_BIN_ONLY=1']
-if rz_svd_proj.found()
-  rz_svd_dep = rz_svd_proj.get_variable('rz_svd_dep')
-  rz_bin_c_args += ['-DHAVE_RZ_SVD=1']
-  message('Found rz-svd subproject dependency')
-else
-  rz_svd_dep = dependency('', required: false)
-  message('rz-svd subproject not found')
-endif
+rz_svd_dep = rz_svd_proj.get_variable('rz_svd_dep')
 
 rz_bin_inc = [platform_inc, include_directories('format')]
 
