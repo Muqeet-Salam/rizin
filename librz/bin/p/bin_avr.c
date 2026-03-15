@@ -5,10 +5,6 @@
 #include <rz_lib.h>
 #include <rz_svd.h>
 
-#ifndef HAVE_RZ_SVD
-#define HAVE_RZ_SVD 1
-#endif
-
 /** \file bin_avr.c
  * This plugin detects the usermode rom in AVR binaries.
  *
