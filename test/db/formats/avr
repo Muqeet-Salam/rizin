@@ -731,7 +731,7 @@ EOF
 EXPECT=<<EOF
 [Info]
 arch     avr
-cpu      ATmega32u4
+cpu      ATmega32U4
 features N/A
 baddr    ----------
 binsz    0x000065a0
@@ -1429,7 +1429,7 @@ EOF
 EXPECT=<<EOF
 [Info]
 arch     avr
-cpu      ATmega328p
+cpu      ATmega328P
 features N/A
 baddr    ----------
 binsz    0x000033ea
@@ -2457,8 +2457,8 @@ FILE=ihex://bins/avr/grbl_0_51_atmega328p_16mhz_9600.hex
 CMDS=iH
 EXPECT=<<EOF
 avr:
-  board: "ATmega328p"
-  cpu: "ATmega328p"
+  board: "ATmega328P"
+  cpu: "ATmega328P"
   reset_vector:
     address: 0x0
     handler: 0x280
