@@ -5,6 +5,14 @@
 #include <rz_lib.h>
 #include <rz_svd.h>
 
+#ifndef RZ_SVD_SRCDIR
+#define RZ_SVD_SRCDIR "/usr/share/rizin/svd"
+#endif
+
+#ifndef RZ_SVD_DATADIR
+#define RZ_SVD_DATADIR "share/rizin/svd"
+#endif
+
 /** \file bin_avr.c
  * This plugin detects the usermode rom in AVR binaries.
  *
@@ -74,7 +82,6 @@
  */
 
 // AVR SVD loader structures and helpers
-#ifdef HAVE_RZ_SVD
 typedef struct {
 	char *device_name;
 	ut32 flash_size;
@@ -89,118 +96,68 @@ typedef struct {
 	void *svd_ctx;
 	RzAvrSvdDevice *device;
 } RzAvrSvdLoader;
-#endif
 
 // Helper functions for AVR SVD loader
-static char *avr_str_dup(const char *str);
-static char *rz_avr_legacy_device_name(const char *name);
-static char *rz_avr_detect_device_name(RzBinFile *bf);
-#ifdef HAVE_RZ_SVD
-static RzAvrSvdDevice *rz_avr_svd_create_dummy_device(const char *name);
-static RzAvrSvdDevice *rz_avr_svd_extract_device(void *svd_ctx, const char *device_name, ut8 pc_width);
-static RzAvrSvdLoader *rz_avr_svd_detect_and_load(RzBinFile *bf, ut8 pc_width);
-static void rz_avr_svd_loader_free(RzAvrSvdLoader *loader);
-static const char *rz_avr_svd_get_interrupt_name(const RzAvrSvdLoader *loader, ut64 index);
-static const char *rz_avr_svd_get_device_name(const RzAvrSvdLoader *loader);
-#endif
+static char *avr_legacy_device_name(const char *name);
+static char *avr_detect_device_name(RzBinFile *bf);
+static RzAvrSvdDevice *avr_svd_create_dummy_device(const char *name);
+static RzAvrSvdDevice *avr_svd_extract_device(void *svd_ctx, const char *device_name, ut8 pc_width);
+static RzAvrSvdLoader *avr_svd_detect_and_load(RzBinFile *bf, ut8 pc_width);
+static void avr_svd_loader_free(RzAvrSvdLoader *loader);
+static const char *avr_svd_get_interrupt_name(const RzAvrSvdLoader *loader, ut64 index);
+static const char *avr_svd_get_device_name(const RzAvrSvdLoader *loader);
 
 typedef struct bin_avr_rom {
 	ut64 n_bytes; ///< detected size of each interrupt vector
 	ut64 bad_interrupt; ///< offset of the rom __bad_interrupt symbol
-#ifdef HAVE_RZ_SVD
 	RzAvrSvdLoader *svd_loader; ///< AVR device SVD data loader
-#endif
 	RzVector /*<ut64>*/ *interrupt_handlers; ///< Parsed interrupt handlers addresses
 } BinAvrRom;
 
 /**
  * Helper: Allocate and duplicate a string
  */
-static char *avr_str_dup(const char *str) {
-	if (!str)
-		return NULL;
-	size_t len = strlen(str) + 1;
-	char *dup = (char *)malloc(len);
-	if (!dup)
-		return NULL;
-	return (char *)memcpy(dup, str, len);
-}
-
-static char *rz_avr_legacy_device_name(const char *name) {
+static char *avr_legacy_device_name(const char *name) {
 	if (!name) {
 		return NULL;
 	}
 
-	if (!strcasecmp(name, "ATmega8")) {
-		return avr_str_dup("ATmega8/L");
+	if (!rz_str_casecmp(name, "ATmega8")) {
+		return rz_str_dup("ATmega8/L");
 	}
 
-	if (!strcasecmp(name, "ATmega640") || !strcasecmp(name, "ATmega1280") ||
-		!strcasecmp(name, "ATmega1281") || !strcasecmp(name, "ATmega2560") ||
-		!strcasecmp(name, "ATmega2561")) {
-		return avr_str_dup("ATmega640/1280/1281/2560/2561");
+	if (!rz_str_casecmp(name, "ATmega640") || !rz_str_casecmp(name, "ATmega1280") ||
+		!rz_str_casecmp(name, "ATmega1281") || !rz_str_casecmp(name, "ATmega2560") ||
+		!rz_str_casecmp(name, "ATmega2561")) {
+		return rz_str_dup("ATmega640/1280/1281/2560/2561");
 	}
 
-	if (!strcasecmp(name, "ATmega16U4") || !strcasecmp(name, "ATmega32U4")) {
-		return avr_str_dup("ATmega16u4/32u4");
+	if (!rz_str_casecmp(name, "ATmega16U4") || !rz_str_casecmp(name, "ATmega32U4")) {
+		return rz_str_dup("ATmega16u4/32u4");
 	}
 
-	if (!strcasecmp(name, "ATxmega128A4U") || !strcasecmp(name, "ATxmega64A4U") ||
-		!strcasecmp(name, "ATxmega32A4U") || !strcasecmp(name, "ATxmega16A4U")) {
-		return avr_str_dup("ATxmega128/64/32/16a4u");
+	if (!rz_str_casecmp(name, "ATxmega128A4U") || !rz_str_casecmp(name, "ATxmega64A4U") ||
+		!rz_str_casecmp(name, "ATxmega32A4U") || !rz_str_casecmp(name, "ATxmega16A4U")) {
+		return rz_str_dup("ATxmega128/64/32/16a4u");
 	}
 
-	if (!strcasecmp(name, "ATmega88") || !strcasecmp(name, "ATmega168")) {
-		return avr_str_dup("ATmega88/168");
+	if (!rz_str_casecmp(name, "ATmega88") || !rz_str_casecmp(name, "ATmega168")) {
+		return rz_str_dup("ATmega88/168");
 	}
 
-	if (!strcasecmp(name, "ATmega48") || !strcasecmp(name, "ATmega48V")) {
-		return avr_str_dup("ATmega48/V/88/V/168/V");
+	if (!rz_str_casecmp(name, "ATmega48") || !rz_str_casecmp(name, "ATmega48V")) {
+		return rz_str_dup("ATmega48/V/88/V/168/V");
 	}
 
-	if (!strcasecmp(name, "ATTiny48") || !strcasecmp(name, "ATTiny88")) {
-		return avr_str_dup("ATTiny48/88");
+	if (!rz_str_casecmp(name, "ATTiny48") || !rz_str_casecmp(name, "ATTiny88")) {
+		return rz_str_dup("ATTiny48/88");
 	}
 
-	if (!strcasecmp(name, "ATmega328P")) {
-		return avr_str_dup("ATmega328p");
+	if (!rz_str_casecmp(name, "ATmega328P")) {
+		return rz_str_dup("ATmega328p");
 	}
 
-	return avr_str_dup(name);
-}
-
-static char *rz_avr_cpu_name(const char *name) {
-	if (!name) {
-		return NULL;
-	}
-	char *cpu = avr_str_dup(name);
-	if (!cpu) {
-		return NULL;
-	}
-	// Normalize: lowercase all suffix letters after the model number digits
-	// e.g. ATmega328P -> ATmega328p, ATmega32U4 -> ATmega32u4
-	char *p = cpu;
-	// Skip "AT" prefix
-	if ((*p == 'A' || *p == 'a') && (*(p + 1) == 'T' || *(p + 1) == 't')) {
-		p += 2;
-	}
-	// Skip known family prefixes (mega, Tiny, xmega)
-	if (strncasecmp(p, "xmega", 5) == 0) {
-		p += 5;
-	} else if (strncasecmp(p, "mega", 4) == 0) {
-		p += 4;
-	} else if (strncasecmp(p, "tiny", 4) == 0) {
-		p += 4;
-	}
-	// Skip model number digits
-	while (*p && isdigit((unsigned char)*p)) {
-		p++;
-	}
-	// Lowercase everything after the model number
-	for (; *p; p++) {
-		*p = tolower((unsigned char)*p);
-	}
-	return cpu;
+	return rz_str_dup(name);
 }
 
 /**
@@ -208,39 +165,39 @@ static char *rz_avr_cpu_name(const char *name) {
  * This is needed because the SVD-based detection picks the device from the filename,
  * but tests expect the highest device in the family for the cpu field.
  */
-static char *rz_avr_best_family_device(const char *name) {
+static char *avr_best_family_device(const char *name) {
 	if (!name) {
 		return NULL;
 	}
 
-	if (!strcasecmp(name, "ATmega640") || !strcasecmp(name, "ATmega1280") ||
-		!strcasecmp(name, "ATmega1281") || !strcasecmp(name, "ATmega2560") ||
-		!strcasecmp(name, "ATmega2561")) {
-		return avr_str_dup("ATmega2561");
+	if (!rz_str_casecmp(name, "ATmega640") || !rz_str_casecmp(name, "ATmega1280") ||
+		!rz_str_casecmp(name, "ATmega1281") || !rz_str_casecmp(name, "ATmega2560") ||
+		!rz_str_casecmp(name, "ATmega2561")) {
+		return rz_str_dup("ATmega2561");
 	}
 
-	if (!strcasecmp(name, "ATmega16U4") || !strcasecmp(name, "ATmega32U4")) {
-		return avr_str_dup("ATmega32U4");
+	if (!rz_str_casecmp(name, "ATmega16U4") || !rz_str_casecmp(name, "ATmega32U4")) {
+		return rz_str_dup("ATmega32U4");
 	}
 
-	if (!strcasecmp(name, "ATxmega128A4U") || !strcasecmp(name, "ATxmega64A4U") ||
-		!strcasecmp(name, "ATxmega32A4U") || !strcasecmp(name, "ATxmega16A4U")) {
-		return avr_str_dup("ATxmega128A4U");
+	if (!rz_str_casecmp(name, "ATxmega128A4U") || !rz_str_casecmp(name, "ATxmega64A4U") ||
+		!rz_str_casecmp(name, "ATxmega32A4U") || !rz_str_casecmp(name, "ATxmega16A4U")) {
+		return rz_str_dup("ATxmega128A4U");
 	}
 
-	if (!strcasecmp(name, "ATmega88") || !strcasecmp(name, "ATmega168")) {
-		return avr_str_dup("ATmega168");
+	if (!rz_str_casecmp(name, "ATmega88") || !rz_str_casecmp(name, "ATmega168")) {
+		return rz_str_dup("ATmega168");
 	}
 
-	if (!strcasecmp(name, "ATmega48") || !strcasecmp(name, "ATmega48V")) {
-		return avr_str_dup("ATmega168");
+	if (!rz_str_casecmp(name, "ATmega48") || !rz_str_casecmp(name, "ATmega48V")) {
+		return rz_str_dup("ATmega168");
 	}
 
-	if (!strcasecmp(name, "ATTiny48") || !strcasecmp(name, "ATTiny88")) {
-		return avr_str_dup("ATTiny88");
+	if (!rz_str_casecmp(name, "ATTiny48") || !rz_str_casecmp(name, "ATTiny88")) {
+		return rz_str_dup("ATTiny88");
 	}
 
-	return avr_str_dup(name);
+	return rz_str_dup(name);
 }
 
 /**
@@ -249,7 +206,7 @@ static char *rz_avr_best_family_device(const char *name) {
  * 2. ELF .comment section (GCC device info)
  * 3. Return NULL to fallback to hardcoded tables
  */
-static char *rz_avr_detect_device_name(RzBinFile *bf) {
+static char *avr_detect_device_name(RzBinFile *bf) {
 	if (!bf || !bf->file) {
 		return NULL;
 	}
@@ -259,7 +216,7 @@ static char *rz_avr_detect_device_name(RzBinFile *bf) {
 		return NULL;
 	}
 
-	char *lower_filename = avr_str_dup(filename);
+	char *lower_filename = rz_str_dup(filename);
 	if (!lower_filename) {
 		return NULL;
 	}
@@ -322,17 +279,16 @@ static char *rz_avr_detect_device_name(RzBinFile *bf) {
 	return device_name;
 }
 
-#ifdef HAVE_RZ_SVD
 /**
  * Create a minimal device struct from hardcoded data
  * Used as fallback when SVD is not available
  */
-static RzAvrSvdDevice *rz_avr_svd_create_dummy_device(const char *name) {
+static RzAvrSvdDevice *avr_svd_create_dummy_device(const char *name) {
 	RzAvrSvdDevice *dev = (RzAvrSvdDevice *)calloc(1, sizeof(RzAvrSvdDevice));
 	if (!dev) {
 		return NULL;
 	}
-	dev->device_name = avr_str_dup(name ? name : "AVR-Unknown");
+	dev->device_name = rz_str_dup(name ? name : "AVR-Unknown");
 	dev->interrupt_map = ht_up_new(NULL, NULL);
 
 	if (!dev->device_name || !dev->interrupt_map) {
@@ -349,7 +305,7 @@ static RzAvrSvdDevice *rz_avr_svd_create_dummy_device(const char *name) {
  * Extract device metadata from rz-svd context
  * Loads the SVD file and extracts interrupt vector information
  */
-static RzAvrSvdDevice *rz_avr_svd_extract_device(
+static RzAvrSvdDevice *avr_svd_extract_device(
 	void *svd_ctx, const char *device_name, ut8 pc_width) {
 
 	if (!device_name) {
@@ -366,11 +322,9 @@ static RzAvrSvdDevice *rz_avr_svd_extract_device(
 	}
 
 	// 2. Check source directory (for development/testing)
-#ifdef RZ_SVD_SRCDIR
 	if (!svd_file) {
 		svd_file = rz_svd_find_file(RZ_SVD_SRCDIR, device_name);
 	}
-#endif
 
 	// 3. Check user home directory
 	if (!svd_file) {
@@ -386,19 +340,8 @@ static RzAvrSvdDevice *rz_avr_svd_extract_device(
 	}
 
 	// 4. Check compile-time defined data directory
-#ifdef RZ_SVD_DATADIR
 	if (!svd_file) {
 		svd_file = rz_svd_find_file(RZ_SVD_DATADIR, device_name);
-	}
-#endif
-
-	// 5. Check standard system paths
-	if (!svd_file) {
-		svd_file = rz_svd_find_file("/usr/share/rizin/svd", device_name);
-	}
-
-	if (!svd_file) {
-		svd_file = rz_svd_find_file("/usr/local/share/rizin/svd", device_name);
 	}
 
 	if (!svd_file) {
@@ -427,7 +370,7 @@ static RzAvrSvdDevice *rz_avr_svd_extract_device(
 		return NULL;
 	}
 
-	dev->device_name = avr_str_dup(svd_dev->name ? svd_dev->name : device_name);
+	dev->device_name = rz_str_dup(svd_dev->name ? svd_dev->name : device_name);
 	dev->pc_width = pc_width;
 	dev->interrupt_map = ht_up_new(NULL, free);
 
@@ -444,7 +387,7 @@ static RzAvrSvdDevice *rz_avr_svd_extract_device(
 		RzSvdInterrupt *svd_int;
 		svd_list_foreach(svd_dev->interrupts, iter, svd_int) {
 			if (svd_int && svd_int->name) {
-				char *name_copy = avr_str_dup(svd_int->name);
+				char *name_copy = rz_str_dup(svd_int->name);
 				if (name_copy) {
 					ht_up_insert(dev->interrupt_map, svd_int->value, name_copy);
 					dev->interrupt_count++;
@@ -460,13 +403,13 @@ static RzAvrSvdDevice *rz_avr_svd_extract_device(
 	return dev;
 }
 
-static RzAvrSvdLoader *rz_avr_svd_detect_and_load(RzBinFile *bf, ut8 pc_width) {
+static RzAvrSvdLoader *avr_svd_detect_and_load(RzBinFile *bf, ut8 pc_width) {
 	RzAvrSvdLoader *loader = (RzAvrSvdLoader *)calloc(1, sizeof(RzAvrSvdLoader));
 	if (!loader) {
 		return NULL;
 	}
 
-	char *device_name = rz_avr_detect_device_name(bf);
+	char *device_name = avr_detect_device_name(bf);
 	if (!device_name) {
 		free(loader);
 		return NULL;
@@ -474,9 +417,9 @@ static RzAvrSvdLoader *rz_avr_svd_detect_and_load(RzBinFile *bf, ut8 pc_width) {
 
 	// Attempt SVD extraction (currently creates dummy device)
 	// Once rz-svd exposes public APIs, this will load real SVD data
-	RzAvrSvdDevice *device = rz_avr_svd_extract_device(NULL, device_name, pc_width);
+	RzAvrSvdDevice *device = avr_svd_extract_device(NULL, device_name, pc_width);
 	if (!device) {
-		device = rz_avr_svd_create_dummy_device(device_name);
+		device = avr_svd_create_dummy_device(device_name);
 		if (!device) {
 			free(device_name);
 			free(loader);
@@ -490,25 +433,21 @@ static RzAvrSvdLoader *rz_avr_svd_detect_and_load(RzBinFile *bf, ut8 pc_width) {
 	return loader;
 }
 
-static void rz_avr_svd_loader_free(RzAvrSvdLoader *loader) {
+static void avr_svd_loader_free(RzAvrSvdLoader *loader) {
 	if (!loader) {
 		return;
 	}
 
 	if (loader->device) {
 		free(loader->device->device_name);
-		if (loader->device->interrupt_map) {
-			// Hash table was created with free as value_free function
-			// so it will automatically free the strings
-			ht_up_free(loader->device->interrupt_map);
-		}
+		ht_up_free(loader->device->interrupt_map);
 		free(loader->device);
 	}
 
 	free(loader);
 }
 
-static const char *rz_avr_svd_get_interrupt_name(const RzAvrSvdLoader *loader, ut64 index) {
+static const char *avr_svd_get_interrupt_name(const RzAvrSvdLoader *loader, ut64 index) {
 	if (!loader || !loader->device || !loader->device->interrupt_map) {
 		return NULL;
 	}
@@ -518,13 +457,12 @@ static const char *rz_avr_svd_get_interrupt_name(const RzAvrSvdLoader *loader, u
 	return found ? name : NULL;
 }
 
-static const char *rz_avr_svd_get_device_name(const RzAvrSvdLoader *loader) {
+static const char *avr_svd_get_device_name(const RzAvrSvdLoader *loader) {
 	if (!loader || !loader->device) {
 		return NULL;
 	}
 	return loader->device->device_name;
 }
-#endif /* HAVE_RZ_SVD */
 
 static bool read_opcode32_at(RzBuffer *b, ut64 addr, ut16 opcode[2]) {
 	return rz_buf_read_ble16_at(b, addr, &opcode[0], false) &&
@@ -736,9 +674,7 @@ static bool avr_load_buffer(RzBinFile *bf, RzBinObject *obj, RzBuffer *buf, Sdb 
 	rom->n_bytes = n_bytes;
 	rom->bad_interrupt = bad_interrupt;
 	rom->interrupt_handlers = interrupt_handlers;
-#ifdef HAVE_RZ_SVD
-	rom->svd_loader = rz_avr_svd_detect_and_load(bf, (ut8)n_bytes);
-#endif
+	rom->svd_loader = avr_svd_detect_and_load(bf, (ut8)n_bytes);
 	obj->bin_obj = rom;
 	return true;
 }
@@ -749,9 +685,7 @@ static void avr_destroy(RzBinFile *bf) {
 		return;
 	}
 	rz_vector_free(rom->interrupt_handlers);
-#ifdef HAVE_RZ_SVD
-	rz_avr_svd_loader_free(rom->svd_loader);
-#endif
+	avr_svd_loader_free(rom->svd_loader);
 	free(rom);
 }
 
@@ -765,21 +699,18 @@ static RzBinInfo *avr_info(RzBinFile *bf) {
 		return NULL;
 	}
 
-	const char *device_name = NULL;
-#ifdef HAVE_RZ_SVD
-	device_name = rz_avr_svd_get_device_name(rom->svd_loader);
-#endif
+	const char *device_name = avr_svd_get_device_name(rom->svd_loader);
 
 	bi->file = rz_str_dup(bf->file);
 	bi->type = rz_str_dup("ROM");
 	// machine field uses grouped family names
-	bi->machine = rz_avr_legacy_device_name(device_name ? device_name : "ATmel (unknown)");
+	bi->machine = avr_legacy_device_name(device_name ? device_name : "ATmel (unknown)");
 	bi->os = rz_str_dup("avr usermode");
 	bi->has_va = false;
 	bi->arch = rz_str_dup("avr");
-	// cpu field uses the best (highest model) device in the family, normalized
-	char *best_dev = rz_avr_best_family_device(device_name ? device_name : "ATmega8");
-	bi->cpu = rz_avr_cpu_name(best_dev ? best_dev : "ATmega8");
+	// cpu field uses the best (highest model) device in the family
+	char *best_dev = avr_best_family_device(device_name ? device_name : "ATmega8");
+	bi->cpu = rz_str_dup(best_dev ? best_dev : "ATmega8");
 	free(best_dev);
 	bi->bits = 8;
 	return bi;
@@ -895,10 +826,7 @@ static RzPVector /*<RzBinSymbol *>*/ *avr_symbols(RzBinFile *bf) {
 			handler_name = "RESET";
 		} else {
 			// Try to get interrupt name from SVD data
-			handler_name = NULL;
-#ifdef HAVE_RZ_SVD
-			handler_name = rz_avr_svd_get_interrupt_name(rom->svd_loader, i);
-#endif
+			handler_name = avr_svd_get_interrupt_name(rom->svd_loader, i);
 			if (!handler_name) {
 				// if missing name, generate generic name
 				ut64 id = vector_addr >> 1;
@@ -941,19 +869,17 @@ static RzBinAddr *avr_binsym(RzBinFile *bf, RzBinSpecialSymbol sym) {
 }
 
 static void avr_structure_add_board_info(RzStructuredData *avr, const BinAvrRom *rom) {
-	const char *device_name = NULL;
-#ifdef HAVE_RZ_SVD
-	device_name = rz_avr_svd_get_device_name(rom->svd_loader);
-#endif
+	const char *device_name = avr_svd_get_device_name(rom->svd_loader);
 	if (!device_name) {
 		return;
 	}
-	// Both board and cpu use normalized names (lowercase 'p')
-	char *board = rz_avr_cpu_name(device_name);
-	char *cpu = rz_avr_cpu_name(device_name);
+	// Both board and cpu use the device name as-is
+	char *board = rz_str_dup(device_name);
 	rz_structured_data_map_add_string(avr, "board", board ? board : device_name);
-	rz_structured_data_map_add_string(avr, "cpu", cpu ? cpu : device_name);
 	free(board);
+
+	char *cpu = rz_str_dup(device_name);
+	rz_structured_data_map_add_string(avr, "cpu", cpu ? cpu : device_name);
 	free(cpu);
 }
 
