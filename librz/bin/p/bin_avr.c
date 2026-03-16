@@ -6,11 +6,11 @@
 #include <rz_svd.h>
 
 #ifndef RZ_SVD_SRCDIR
-#define RZ_SVD_SRCDIR "/usr/share/rizin/svd"
+#define RZ_SVD_SRCDIR
 #endif
 
 #ifndef RZ_SVD_DATADIR
-#define RZ_SVD_DATADIR "share/rizin/svd"
+#define RZ_SVD_DATADIR
 #endif
 
 /** \file bin_avr.c
@@ -160,40 +160,6 @@ static char *avr_legacy_device_name(const char *name) {
 	return rz_str_dup(name);
 }
 
-static char *avr_cpu_name(const char *name) {
-	if (!name) {
-		return NULL;
-	}
-	char *cpu = rz_str_dup(name);
-	if (!cpu) {
-		return NULL;
-	}
-	// Normalize: lowercase all suffix letters after the model number digits
-	// e.g. ATmega328P -> ATmega328p, ATmega32U4 -> ATmega32u4
-	char *p = cpu;
-	// Skip "AT" prefix
-	if ((*p == 'A' || *p == 'a') && (*(p + 1) == 'T' || *(p + 1) == 't')) {
-		p += 2;
-	}
-	// Skip known family prefixes (mega, Tiny, xmega)
-	if (strncasecmp(p, "xmega", 5) == 0) {
-		p += 5;
-	} else if (strncasecmp(p, "mega", 4) == 0) {
-		p += 4;
-	} else if (strncasecmp(p, "tiny", 4) == 0) {
-		p += 4;
-	}
-	// Skip model number digits
-	while (*p && isdigit((unsigned char)*p)) {
-		p++;
-	}
-	// Lowercase everything after the model number
-	for (; *p; p++) {
-		*p = tolower((unsigned char)*p);
-	}
-	return cpu;
-}
-
 /**
  * Map a detected device to the "best" (highest model number) device in its family.
  * This is needed because the SVD-based detection picks the device from the filename,
@@ -318,7 +284,7 @@ static char *avr_detect_device_name(RzBinFile *bf) {
  * Used as fallback when SVD is not available
  */
 static RzAvrSvdDevice *avr_svd_create_dummy_device(const char *name) {
-	RzAvrSvdDevice *dev = (RzAvrSvdDevice *)calloc(1, sizeof(RzAvrSvdDevice));
+	RzAvrSvdDevice *dev = RZ_NEW0(RzAvrSvdDevice);
 	if (!dev) {
 		return NULL;
 	}
@@ -333,6 +299,25 @@ static RzAvrSvdDevice *avr_svd_create_dummy_device(const char *name) {
 	}
 
 	return dev;
+}
+
+static void avr_svd_populate_interrupt_map(RzAvrSvdDevice *dev, RzSvdDevice *svd_dev) {
+	if (!dev || !svd_dev || !svd_dev->interrupts) {
+		return;
+	}
+
+	SvdListNode *iter;
+	RzSvdInterrupt *svd_int;
+	svd_list_foreach(svd_dev->interrupts, iter, svd_int) {
+		if (svd_int && svd_int->name) {
+			char *name_copy = rz_str_dup(svd_int->name);
+			if (name_copy) {
+				ht_up_insert(dev->interrupt_map, svd_int->value, name_copy);
+				dev->interrupt_count++;
+				RZ_LOG_DEBUG("avr: Mapped interrupt %u -> %s\n", svd_int->value, name_copy);
+			}
+		}
+	}
 }
 
 /**
@@ -398,7 +383,7 @@ static RzAvrSvdDevice *avr_svd_extract_device(
 		return NULL;
 	}
 
-	RzAvrSvdDevice *dev = (RzAvrSvdDevice *)calloc(1, sizeof(RzAvrSvdDevice));
+	RzAvrSvdDevice *dev = RZ_NEW0(RzAvrSvdDevice);
 	if (!dev) {
 		rz_svd_free(ctx);
 		return NULL;
@@ -416,20 +401,7 @@ static RzAvrSvdDevice *avr_svd_extract_device(
 		return NULL;
 	}
 
-	if (svd_dev->interrupts) {
-		SvdListNode *iter;
-		RzSvdInterrupt *svd_int;
-		svd_list_foreach(svd_dev->interrupts, iter, svd_int) {
-			if (svd_int && svd_int->name) {
-				char *name_copy = rz_str_dup(svd_int->name);
-				if (name_copy) {
-					ht_up_insert(dev->interrupt_map, svd_int->value, name_copy);
-					dev->interrupt_count++;
-					RZ_LOG_DEBUG("avr: Mapped interrupt %u -> %s\n", svd_int->value, name_copy);
-				}
-			}
-		}
-	}
+	avr_svd_populate_interrupt_map(dev, svd_dev);
 
 	RZ_LOG_INFO("avr: Loaded SVD for %s with %u interrupts\n", dev->device_name, dev->interrupt_count);
 
@@ -437,8 +409,20 @@ static RzAvrSvdDevice *avr_svd_extract_device(
 	return dev;
 }
 
+static RzAvrSvdDevice *avr_svd_load_device(const char *device_name, ut8 pc_width) {
+	if (!device_name) {
+		return NULL;
+	}
+
+	RzAvrSvdDevice *device = avr_svd_extract_device(NULL, device_name, pc_width);
+	if (!device) {
+		device = avr_svd_create_dummy_device(device_name);
+	}
+	return device;
+}
+
 static RzAvrSvdLoader *avr_svd_detect_and_load(RzBinFile *bf, ut8 pc_width) {
-	RzAvrSvdLoader *loader = (RzAvrSvdLoader *)calloc(1, sizeof(RzAvrSvdLoader));
+	RzAvrSvdLoader *loader = RZ_NEW0(RzAvrSvdLoader);
 	if (!loader) {
 		return NULL;
 	}
@@ -449,16 +433,11 @@ static RzAvrSvdLoader *avr_svd_detect_and_load(RzBinFile *bf, ut8 pc_width) {
 		return NULL;
 	}
 
-	// Attempt SVD extraction (currently creates dummy device)
-	// Once rz-svd exposes public APIs, this will load real SVD data
-	RzAvrSvdDevice *device = avr_svd_extract_device(NULL, device_name, pc_width);
+	RzAvrSvdDevice *device = avr_svd_load_device(device_name, pc_width);
 	if (!device) {
-		device = avr_svd_create_dummy_device(device_name);
-		if (!device) {
-			free(device_name);
-			free(loader);
-			return NULL;
-		}
+		free(device_name);
+		free(loader);
+		return NULL;
 	}
 
 	loader->svd_ctx = NULL;
@@ -742,9 +721,9 @@ static RzBinInfo *avr_info(RzBinFile *bf) {
 	bi->os = rz_str_dup("avr usermode");
 	bi->has_va = false;
 	bi->arch = rz_str_dup("avr");
-	// cpu field uses the best (highest model) device in the family, normalized
+	// cpu field uses the best (highest model) device in the family
 	char *best_dev = avr_best_family_device(device_name ? device_name : "ATmega8");
-	bi->cpu = avr_cpu_name(best_dev ? best_dev : "ATmega8");
+	bi->cpu = rz_str_dup(best_dev ? best_dev : "ATmega8");
 	free(best_dev);
 	bi->bits = 8;
 	return bi;
@@ -907,9 +886,9 @@ static void avr_structure_add_board_info(RzStructuredData *avr, const BinAvrRom 
 	if (!device_name) {
 		return;
 	}
-	// Both board and cpu use normalized names (lowercase 'p')
-	char *board = avr_cpu_name(device_name);
-	char *cpu = avr_cpu_name(device_name);
+	// Use the detected device name for board and cpu
+	char *board = rz_str_dup(device_name);
+	char *cpu = rz_str_dup(device_name);
 	rz_structured_data_map_add_string(avr, "board", board ? board : device_name);
 	rz_structured_data_map_add_string(avr, "cpu", cpu ? cpu : device_name);
 	free(board);
