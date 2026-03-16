@@ -160,6 +160,40 @@ static char *avr_legacy_device_name(const char *name) {
 	return rz_str_dup(name);
 }
 
+static char *avr_cpu_name(const char *name) {
+	if (!name) {
+		return NULL;
+	}
+	char *cpu = rz_str_dup(name);
+	if (!cpu) {
+		return NULL;
+	}
+	// Normalize: lowercase all suffix letters after the model number digits
+	// e.g. ATmega328P -> ATmega328p, ATmega32U4 -> ATmega32u4
+	char *p = cpu;
+	// Skip "AT" prefix
+	if ((*p == 'A' || *p == 'a') && (*(p + 1) == 'T' || *(p + 1) == 't')) {
+		p += 2;
+	}
+	// Skip known family prefixes (mega, Tiny, xmega)
+	if (strncasecmp(p, "xmega", 5) == 0) {
+		p += 5;
+	} else if (strncasecmp(p, "mega", 4) == 0) {
+		p += 4;
+	} else if (strncasecmp(p, "tiny", 4) == 0) {
+		p += 4;
+	}
+	// Skip model number digits
+	while (*p && isdigit((unsigned char)*p)) {
+		p++;
+	}
+	// Lowercase everything after the model number
+	for (; *p; p++) {
+		*p = tolower((unsigned char)*p);
+	}
+	return cpu;
+}
+
 /**
  * Map a detected device to the "best" (highest model number) device in its family.
  * This is needed because the SVD-based detection picks the device from the filename,
@@ -708,9 +742,9 @@ static RzBinInfo *avr_info(RzBinFile *bf) {
 	bi->os = rz_str_dup("avr usermode");
 	bi->has_va = false;
 	bi->arch = rz_str_dup("avr");
-	// cpu field uses the best (highest model) device in the family
+	// cpu field uses the best (highest model) device in the family, normalized
 	char *best_dev = avr_best_family_device(device_name ? device_name : "ATmega8");
-	bi->cpu = rz_str_dup(best_dev ? best_dev : "ATmega8");
+	bi->cpu = avr_cpu_name(best_dev ? best_dev : "ATmega8");
 	free(best_dev);
 	bi->bits = 8;
 	return bi;
@@ -873,13 +907,12 @@ static void avr_structure_add_board_info(RzStructuredData *avr, const BinAvrRom 
 	if (!device_name) {
 		return;
 	}
-	// Both board and cpu use the device name as-is
-	char *board = rz_str_dup(device_name);
+	// Both board and cpu use normalized names (lowercase 'p')
+	char *board = avr_cpu_name(device_name);
+	char *cpu = avr_cpu_name(device_name);
 	rz_structured_data_map_add_string(avr, "board", board ? board : device_name);
-	free(board);
-
-	char *cpu = rz_str_dup(device_name);
 	rz_structured_data_map_add_string(avr, "cpu", cpu ? cpu : device_name);
+	free(board);
 	free(cpu);
 }
 
