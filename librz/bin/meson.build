@@ -57,6 +57,7 @@ bin_plugins_list = [
   'xnu_kernelcache',
   'z64',
   'zimg',
+  'openvms',
 ]
 
 bin_xtr_plugins_list = [
@@ -164,7 +165,7 @@ rz_bin_sources = [
   # 'p/bin_xtr_pemixed.c',
   'p/bin_xtr_sep64.c',
   'p/bin_zimg.c',
-
+  'p/bin_openvms.c',
 
   'format/bflt/bflt.c',
   'format/coff/coff.c',
@@ -281,6 +282,7 @@ rz_bin_sources = [
   'format/cart/cart.c',
   'format/te/te.c',
   'format/wasm/wasm.c',
+  'format/openvms/openvms.c',
 
   'pdb/cab_extract.c',
   'pdb/dbi.c',
