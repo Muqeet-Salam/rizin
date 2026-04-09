@@ -10,6 +10,8 @@
 #include <unistd.h>
 #include <elf.h>
 
+#include <rz_core.h>
+
 #include "linux_ptrace.h"
 #include "rz_debug.h"
 
@@ -1110,6 +1112,39 @@ static void print_fpu(void *f) {
 #endif
 }
 
+static int linux_reg_read_corefile(RzDebug *dbg, int type, ut8 *buf, int size) {
+	if (type != RZ_REG_TYPE_SEG && type != RZ_REG_TYPE_FLG && type != RZ_REG_TYPE_GPR) {
+		return 0;
+	}
+	RzCore *core = (RzCore *)dbg->corebind.core;
+	if (!core || !core->bin || !buf || size <= 0) {
+		return 0;
+	}
+	RzBinObject *obj = rz_bin_cur_object(core->bin);
+	if (!obj || !obj->regstate) {
+		return 0;
+	}
+	size_t regstate_str_len = strlen(obj->regstate);
+	if (regstate_str_len < 2) {
+		return 0;
+	}
+	size_t regstate_size = regstate_str_len / 2;
+	ut8 *regstate = RZ_NEWS(ut8, regstate_size);
+	if (!regstate) {
+		return 0;
+	}
+	int ret = rz_hex_str2bin(obj->regstate, regstate);
+	if (ret <= 0) {
+		free(regstate);
+		return 0;
+	}
+	ret = RZ_MIN(ret, size);
+	memset(buf, 0, size);
+	memcpy(buf, regstate, ret);
+	free(regstate);
+	return ret;
+}
+
 int linux_reg_read(RzDebug *dbg, int type, ut8 *buf, int size) {
 	bool showfpu = false;
 	int pid = dbg->tid;
@@ -1216,6 +1251,10 @@ int linux_reg_read(RzDebug *dbg, int type, ut8 *buf, int size) {
 	case RZ_REG_TYPE_SEG:
 	case RZ_REG_TYPE_FLG:
 	case RZ_REG_TYPE_GPR: {
+		ret = linux_reg_read_corefile(dbg, type, buf, size);
+		if (ret > 0) {
+			return ret;
+		}
 		RZ_DEBUG_REG_T regs;
 		memset(&regs, 0, sizeof(regs));
 		memset(buf, 0, size);
