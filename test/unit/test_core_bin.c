@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 
 #include <rz_core.h>
+#include <rz_reg.h>
 #include "minunit.h"
 
 // --------------------------
@@ -96,6 +97,41 @@ RzBinPlugin mock_plugin = {
 	.virtual_files = &virtual_files,
 	.maps = maps,
 	.info = info,
+};
+
+static char *core_mock_regstate(RzBinFile *bf) {
+	(void)bf;
+	return rz_str_dup("01020304");
+}
+
+static int core_mock_file_type(RzBinFile *bf) {
+	(void)bf;
+	return RZ_BIN_TYPE_CORE;
+}
+
+static RzBinInfo *core_mock_info(RzBinFile *bf) {
+	RzBinInfo *ret = RZ_NEW0(RzBinInfo);
+	if (!ret) {
+		return NULL;
+	}
+	ret->file = strdup(bf->file);
+	ret->has_va = 1;
+	ret->arch = strdup("x86");
+	ret->bits = 32;
+	return ret;
+}
+
+RzBinPlugin core_mock_plugin = {
+	.name = "mock_core",
+	.desc = "Testing core plugin",
+	.license = "LGPL3",
+	.load_buffer = load_buffer,
+	.check_buffer = check_buffer,
+	.virtual_files = &virtual_files,
+	.maps = maps,
+	.info = core_mock_info,
+	.file_type = core_mock_file_type,
+	.regstate = core_mock_regstate,
 };
 
 // --------------------------
@@ -218,6 +254,34 @@ bool test_map(void) {
 	red = rz_buf_read_at(vf->buf, 0, buf, 8);
 	mu_assert_eq(red, 8, "buf read size");
 	mu_assert_memeq(buf, (const ut8 *)"rizinizi", 8, "buf written");
+
+	rz_core_free(core);
+	mu_end;
+}
+
+bool test_core_load_regstate(void) {
+	RzCore *core = rz_core_new();
+	mu_assert_notnull(core, "core created");
+
+	rz_bin_plugin_add(core->bin, &core_mock_plugin);
+
+	RzReg *rreg = rz_analysis_get_reg(core->analysis);
+	mu_assert_notnull(rreg, "analysis reg created");
+	mu_assert_true(rz_reg_set_profile_string(rreg, "gpr eax .32 0 0"), "set profile string");
+
+	RzCoreFile *f = rz_core_file_open(core, "hex://01020304", RZ_PERM_R, 0);
+	mu_assert_notnull(f, "load core file");
+	mu_assert_true(rz_core_bin_load(core, NULL, 0), "core bin load");
+
+	ut8 *arena = rz_reg_arena_peek(rreg);
+	mu_assert_notnull(arena, "peek analysis reg arena");
+	mu_assert_memeq(arena, (const ut8 *)"\x01\x02\x03\x04", 4, "analysis regs loaded from corefile regstate");
+	free(arena);
+
+	ut8 *dbg_arena = rz_reg_arena_peek(core->dbg->reg);
+	mu_assert_notnull(dbg_arena, "peek debug reg arena");
+	mu_assert_memeq(dbg_arena, (const ut8 *)"\x01\x02\x03\x04", 4, "debug regs loaded from corefile regstate");
+	free(dbg_arena);
 
 	rz_core_free(core);
 	mu_end;
@@ -633,6 +697,7 @@ bool test_bin_set_export_info(void) {
 
 bool all_tests() {
 	mu_run_test(test_map);
+	mu_run_test(test_core_load_regstate);
 	mu_run_test(test_cfile_close);
 	mu_run_test(test_cfile_close_multiple);
 	mu_run_test(test_cfile_close_manual_maps);
