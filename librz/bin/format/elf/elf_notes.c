@@ -97,10 +97,10 @@
 
 // Linux x86/x86_64 NT_FPREGSET layouts.
 // For both, the FP state begins at the start of the note description.
-#define X86_FPREGS_SIZE      108
-#define X86_64_FPREGS_SIZE   512
-#define X86_FPREG_OFFSET     0x0
-#define X86_64_FPREG_OFFSET  0x0
+#define X86_FPREGS_SIZE     108
+#define X86_64_FPREGS_SIZE  512
+#define X86_FPREG_OFFSET    0x0
+#define X86_64_FPREG_OFFSET 0x0
 
 // o6 is the stack pointer. So g0-g7,o0-5 come before it.
 // Same for OpenBSD and Linux.
